@@ -187,6 +187,19 @@ class LoginAttemptController extends Controller
             );
         }
 
+        // 4B) Clear recent GEO anomaly flags after MFA is verified.
+        // Otherwise R3B_GEO_COOLDOWN will keep forcing STEP_UP for the whole cooldown window.
+        if ($mfaVerified === true && !empty($userId)) {
+            $cooldownMinutes = 10;
+
+            FraudFlag::query()
+                ->where('user_id', $userId)
+                ->where('created_at', '>=', now()->subMinutes($cooldownMinutes))
+                ->whereRaw("JSON_SEARCH(triggered_rules, 'one', 'R3_GEO_ANOMALY', NULL, '$[*].code') IS NOT NULL")
+                ->delete();
+        }
+
+
         return response()->json([
             'stored_event_id' => $event->id,
             'decision' => $decision,
